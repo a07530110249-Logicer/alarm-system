@@ -1,9 +1,12 @@
 ﻿# 锅炉监控系统管理脚本 (Windows PowerShell)
-# 用法: .\manage.ps1 [up|dev|api|down|logs|db|test|sim|status]
+# 用法: .\manage.ps1 [up|dev|api|down|logs|db|test|manual -Feed 85 -Water 60 -Steam 45|auto|sim|status]
 param(
     [Parameter()]
-    [ValidateSet("up", "dev", "api", "down", "logs", "db", "test", "status", "sim")]
-    [string]$Command = "status"
+    [ValidateSet("up", "dev", "api", "down", "logs", "db", "test", "manual", "auto", "status", "sim")]
+    [string]$Command = "status",
+    [double]$Feed = 50,
+    [double]$Water = 50,
+    [double]$Steam = 40
 )
 
 switch ($Command) {
@@ -50,6 +53,25 @@ switch ($Command) {
             Write-Host "请求失败: $_"
             Write-Host "请确认 API 已启动 (.\manage.ps1 up 或 .\manage.ps1 api)"
         }
+    }
+    "manual" {
+        Write-Host "切换手动模式: 进料=$Feed% 进水=$Water% 蒸汽=$Steam% ..."
+        $body = @{mode="manual"; feed_valve=$Feed; water_valve=$Water; steam_valve=$Steam} | ConvertTo-Json
+        try {
+            $resp = Invoke-RestMethod -Uri "http://localhost:5000/api/valves" `
+                -Method Post -ContentType "application/json" -Body $body
+            $resp | ConvertTo-Json -Depth 3
+            Write-Host "提示: 安全联锁仍然生效, 超限时手动指令会被覆盖"
+        } catch {
+            Write-Host "请求失败: $_"
+            Write-Host "请确认 API 已启动 (.\manage.ps1 up 或 .\manage.ps1 api)"
+        }
+    }
+    "auto" {
+        Write-Host "切回自动 PID 模式..."
+        $resp = Invoke-RestMethod -Uri "http://localhost:5000/api/valves" `
+            -Method Post -ContentType "application/json" -Body '{"mode":"auto"}'
+        $resp | ConvertTo-Json -Depth 3
     }
     "sim" {
         Write-Host "启动传感器模拟器 (Ctrl+C 停止)..."

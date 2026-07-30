@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 锅炉监控系统管理脚本 (Linux / macOS)
-# 用法: bash manage.sh [up|dev|api|down|logs|db|test|sim|status]
+# 用法: bash manage.sh [up|dev|api|down|logs|db|test|manual [进料 进水 蒸汽]|auto|sim|status]
 set -euo pipefail
 
 CMD="${1:-status}"
@@ -49,6 +49,21 @@ case "$CMD" in
             exit 1
         fi
         ;;
+    manual)
+        FEED="${2:-50}"; WATER="${3:-50}"; STEAM="${4:-40}"
+        echo "切换手动模式: 进料=${FEED}% 进水=${WATER}% 蒸汽=${STEAM}% ..."
+        curl -s -X POST http://localhost:5000/api/valves \
+            -H "Content-Type: application/json" \
+            -d "{\"mode\":\"manual\",\"feed_valve\":${FEED},\"water_valve\":${WATER},\"steam_valve\":${STEAM}}"
+        echo ""
+        echo "提示: 安全联锁仍然生效, 超限时手动指令会被覆盖"
+        ;;
+    auto)
+        echo "切回自动 PID 模式..."
+        curl -s -X POST http://localhost:5000/api/valves \
+            -H "Content-Type: application/json" -d '{"mode":"auto"}'
+        echo ""
+        ;;
     sim)
         echo "启动传感器模拟器 (Ctrl+C 停止)..."
         python3 sensor_simulator.py
@@ -57,7 +72,7 @@ case "$CMD" in
         docker compose ps
         ;;
     *)
-        echo "用法: bash manage.sh {up|dev|api|down|logs|db|test|sim|status}"
+        echo "用法: bash manage.sh {up|dev|api|down|logs|db|test|manual [进料 进水 蒸汽]|auto|sim|status}"
         exit 1
         ;;
 esac
